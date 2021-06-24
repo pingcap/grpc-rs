@@ -2,13 +2,14 @@
 
 use crate::call::client::{
     CallOption, ClientCStreamReceiver, ClientCStreamSender, ClientDuplexReceiver,
-    ClientDuplexSender, ClientSStreamReceiver, ClientUnaryReceiver,
+    ClientDuplexSender, ClientSStreamReceiver, ClientUnaryReceiver, FullClientUnaryReceiver,
 };
 use crate::call::{Call, Method};
 use crate::channel::Channel;
 use crate::error::Result;
 use crate::task::Executor;
 use crate::task::Kicker;
+use crate::Metadata;
 use futures::executor::block_on;
 use futures::Future;
 
@@ -40,6 +41,19 @@ impl Client {
         block_on(self.unary_call_async(method, req, opt)?)
     }
 
+    /// Create a synchronized unary RPC call with metadata.
+    ///
+    /// It uses futures::executor::block_on to wait for the futures. It's recommended to use
+    /// the asynchronous version.
+    pub fn unary_call_full<Req, Resp>(
+        &self,
+        method: &Method<Req, Resp>,
+        req: &Req,
+        opt: CallOption,
+    ) -> Result<(Option<Metadata>, Resp, Option<Metadata>)> {
+        block_on(self.unary_call_full_async(method, req, opt)?)
+    }
+
     /// Create an asynchronized unary RPC call.
     pub fn unary_call_async<Req, Resp>(
         &self,
@@ -48,6 +62,16 @@ impl Client {
         opt: CallOption,
     ) -> Result<ClientUnaryReceiver<Resp>> {
         Call::unary_async(&self.channel, method, req, opt)
+    }
+
+    /// Create an asynchronous unary RPC call with metadata support.
+    pub fn unary_call_full_async<Req, Resp>(
+        &self,
+        method: &Method<Req, Resp>,
+        req: &Req,
+        opt: CallOption,
+    ) -> Result<FullClientUnaryReceiver<Resp>> {
+        Call::full_unary_async(&self.channel, method, req, opt)
     }
 
     /// Create an asynchronized client streaming call.

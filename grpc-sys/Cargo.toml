@@ -69,5 +69,5 @@ cmake = "0.1"
 pkg-config = "0.3"
 walkdir = "2.2.9"
 # Because of rust-lang/cargo#5237, bindgen should not be upgraded util a minor or major release.
-bindgen = { version = "0.57.0", default-features = false, optional = true, features = ["runtime"] }
+bindgen = { version = "0.58.0", default-features = false, optional = true, features = ["runtime"] }
 boringssl-src = "0.3.0"

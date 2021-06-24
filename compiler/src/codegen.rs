@@ -295,6 +295,19 @@ impl<'a> MethodGen<'a> {
         )
     }
 
+    fn unary_full(&self, method_name: &str) -> String {
+        format!(
+            "{}_full(&self, req: &{}, opt: {}) -> {}<(Option<{}>, {}, Option<{}>)>",
+            method_name,
+            self.input(),
+            fq_grpc("CallOption"),
+            fq_grpc("Result"),
+            fq_grpc("Metadata"),
+            self.output(),
+            fq_grpc("Metadata"),
+        )
+    }
+
     fn unary_async(&self, method_name: &str) -> String {
         format!(
             "{}_async(&self, req: &{}) -> {}<{}<{}>>",
@@ -314,6 +327,18 @@ impl<'a> MethodGen<'a> {
             fq_grpc("CallOption"),
             fq_grpc("Result"),
             fq_grpc("ClientUnaryReceiver"),
+            self.output()
+        )
+    }
+
+    fn unary_async_full(&self, method_name: &str) -> String {
+        format!(
+            "{}_async_full(&self, req: &{}, opt: {}) -> {}<{}<{}>>",
+            method_name,
+            self.input(),
+            fq_grpc("CallOption"),
+            fq_grpc("Result"),
+            fq_grpc("FullClientUnaryReceiver"),
             self.output()
         )
     }
@@ -396,6 +421,14 @@ impl<'a> MethodGen<'a> {
         match self.method_type().0 {
             // Unary
             MethodType::Unary => {
+                w.pub_fn(&self.unary_full(&method_name), |w| {
+                    w.write_line(&format!(
+                        "self.client.unary_call_full(&{}, req, opt)",
+                        self.const_method_name()
+                    ));
+                });
+                w.write_line("");
+
                 w.pub_fn(&self.unary_opt(&method_name), |w| {
                     w.write_line(&format!(
                         "self.client.unary_call(&{}, req, opt)",
@@ -409,6 +442,14 @@ impl<'a> MethodGen<'a> {
                         "self.{}_opt(req, {})",
                         method_name,
                         fq_grpc("CallOption::default()")
+                    ));
+                });
+                w.write_line("");
+
+                w.pub_fn(&self.unary_async_full(&method_name), |w| {
+                    w.write_line(&format!(
+                        "self.client.unary_call_full_async(&{}, req, opt)",
+                        self.const_method_name()
                     ));
                 });
                 w.write_line("");

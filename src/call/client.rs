@@ -102,6 +102,32 @@ impl CallOption {
 }
 
 impl Call {
+    pub fn full_unary_async<Req, Resp>(
+        channel: &Channel,
+        method: &Method<Req, Resp>,
+        req: &Req,
+        mut opt: CallOption,
+    ) -> Result<FullClientUnaryReceiver<Resp>> {
+        let call = channel.create_call(method, &opt)?;
+        let mut payload = GrpcSlice::default();
+        (method.req_ser())(req, &mut payload);
+        let cq_f = check_run(BatchType::CheckRead, |ctx, tag| unsafe {
+            grpc_sys::grpcwrap_call_start_unary(
+                call.call,
+                ctx,
+                payload.as_mut_ptr(),
+                opt.write_flags.flags,
+                opt.headers
+                    .as_mut()
+                    .map_or_else(ptr::null_mut, |c| c as *mut _ as _),
+                opt.call_flags,
+                tag,
+            )
+        });
+
+        Ok(FullClientUnaryReceiver::new(call, cq_f, method.resp_de()))
+    }
+
     pub fn unary_async<Req, Resp>(
         channel: &Channel,
         method: &Method<Req, Resp>,
@@ -251,9 +277,46 @@ impl<T> Future for ClientUnaryReceiver<T> {
     type Output = Result<T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<T>> {
-        let data = ready!(Pin::new(&mut self.resp_f).poll(cx)?);
+        let (_initial, data, _trailing) = ready!(Pin::new(&mut self.resp_f).poll(cx)?);
         let t = self.resp_de(data.unwrap())?;
         Poll::Ready(Ok(t))
+    }
+}
+
+pub struct FullClientUnaryReceiver<T>(ClientUnaryReceiver<T>);
+
+impl<T> FullClientUnaryReceiver<T> {
+    fn new(
+        call: Call,
+        resp_f: BatchFuture,
+        resp_de: DeserializeFn<T>,
+    ) -> FullClientUnaryReceiver<T> {
+        FullClientUnaryReceiver(ClientUnaryReceiver::new(call, resp_f, resp_de))
+    }
+
+    /// Cancel the call.
+    #[inline]
+    pub fn cancel(&mut self) {
+        self.0.cancel()
+    }
+
+    #[inline]
+    pub fn resp_de(&self, reader: MessageReader) -> Result<T> {
+        (self.0.resp_de)(reader)
+    }
+}
+
+impl<T> Future for FullClientUnaryReceiver<T> {
+    type Output = Result<(Option<Metadata>, T, Option<Metadata>)>;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Result<(Option<Metadata>, T, Option<Metadata>)>> {
+        let (initial, data, trailer) = ready!(Pin::new(&mut self.0.resp_f).poll(cx)?);
+
+        let t = self.resp_de(data.unwrap())?;
+        Poll::Ready(Ok((initial, t, trailer)))
     }
 }
 
@@ -298,7 +361,7 @@ impl<T> Future for ClientCStreamReceiver<T> {
     type Output = Result<T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<T>> {
-        let data = {
+        let (_initial, data, _trailer) = {
             let mut call = self.call.lock();
             ready!(call.poll_finish(cx)?)
         };
@@ -459,10 +522,11 @@ impl<H: ShareCallHolder + Unpin, T> ResponseStreamImpl<H, T> {
         loop {
             if !self.read_done {
                 if let Some(msg_f) = &mut self.msg_f {
-                    bytes = ready!(Pin::new(msg_f).poll(cx)?);
+                    let (_initial, tmp, _trailer) = ready!(Pin::new(msg_f).poll(cx)?);
                     if bytes.is_none() {
                         self.read_done = true;
                     }
+                    bytes = tmp;
                 }
             }
 

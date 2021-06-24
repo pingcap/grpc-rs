@@ -254,6 +254,16 @@ impl Drop for Metadata {
     }
 }
 
+impl From<*const grpc_metadata_array> for Metadata {
+    fn from(src: *const grpc_metadata_array) -> Metadata {
+        // Create a no-destructor Metadata from a shallow copy of src
+        let src = ManuallyDrop::new(Metadata(unsafe { *src }));
+
+        // Return a deep copy of that wrapped shallow copy
+        (*src).clone()
+    }
+}
+
 unsafe impl Send for Metadata {}
 
 /// Immutable metadata iterator

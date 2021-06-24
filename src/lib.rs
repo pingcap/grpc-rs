@@ -46,7 +46,8 @@ mod task;
 pub use crate::buf::GrpcSlice;
 pub use crate::call::client::{
     CallOption, ClientCStreamReceiver, ClientCStreamSender, ClientDuplexReceiver,
-    ClientDuplexSender, ClientSStreamReceiver, ClientUnaryReceiver, StreamingCallSink,
+    ClientDuplexSender, ClientSStreamReceiver, ClientUnaryReceiver, FullClientUnaryReceiver,
+    StreamingCallSink,
 };
 pub use crate::call::server::{
     ClientStreamingSink, ClientStreamingSinkResult, Deadline, DuplexSink, DuplexSinkFailure,

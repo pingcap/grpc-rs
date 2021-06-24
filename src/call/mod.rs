@@ -253,6 +253,26 @@ impl BatchContext {
         }
     }
 
+    pub fn recv_initial_metadata(&self) -> Option<Metadata> {
+        let ptr = unsafe { grpc_sys::grpcwrap_batch_context_recv_initial_metadata(self.ctx) };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(Metadata::from(ptr))
+        }
+    }
+
+    pub fn recv_trailing_metadata(&self) -> Option<Metadata> {
+        let ptr = unsafe {
+            grpc_sys::grpcwrap_batch_context_recv_status_on_client_trailing_metadata(self.ctx)
+        };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(Metadata::from(ptr))
+        }
+    }
+
     /// Get the status of the rpc call.
     pub fn rpc_status(&self) -> RpcStatus {
         let status = RpcStatusCode(unsafe {
@@ -310,6 +330,7 @@ where
 {
     let (cq_f, tag) = CallTag::batch_pair(bt);
     let (batch_ptr, tag_ptr) = box_batch_tag(tag);
+    // need to have batch_ptr passed through
     let code = f(batch_ptr, tag_ptr);
     if code != grpc_call_error::GRPC_CALL_OK {
         unsafe {
@@ -518,7 +539,10 @@ impl ShareCall {
     /// Poll if the call is still alive.
     ///
     /// If the call is still running, will register a notification for its completion.
-    fn poll_finish(&mut self, cx: &mut Context) -> Poll<Result<Option<MessageReader>>> {
+    fn poll_finish(
+        &mut self,
+        cx: &mut Context,
+    ) -> Poll<Result<(Option<Metadata>, Option<MessageReader>, Option<Metadata>)>> {
         let res = match Pin::new(&mut self.close_f).poll(cx) {
             Poll::Ready(Ok(reader)) => {
                 self.status = Some(RpcStatus::ok());
@@ -603,10 +627,11 @@ impl StreamingBase {
         let mut bytes = None;
         if !self.read_done {
             if let Some(msg_f) = &mut self.msg_f {
-                bytes = ready!(Pin::new(msg_f).poll(cx)?);
-                if bytes.is_none() {
+                let (_, tmp, _) = ready!(Pin::new(msg_f).poll(cx)?);
+                if tmp.is_none() {
                     self.read_done = true;
                 }
+                bytes = tmp;
             }
         }
 
