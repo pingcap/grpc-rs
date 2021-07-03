@@ -358,11 +358,20 @@ macro_rules! impl_unary_sink {
             }
 
             fn complete(mut self, status: RpcStatus, t: Option<T>) -> $rt {
-                let mut data = t.as_ref().map(|t| {
-                    let mut buf = GrpcSlice::default();
-                    (self.ser)(t, &mut buf);
-                    buf
-                });
+                let mut data = match t {
+                    Some(t) => {
+                        let mut buf = GrpcSlice::default();
+                        if let Err(e) = (self.ser)(&t, &mut buf) {
+                            return $rt {
+                                call: self.call.take().unwrap(),
+                                cq_f: None,
+                                err: Some(e),
+                            };
+                        }
+                        Some(buf)
+                    }
+                    None => None,
+                };
 
                 let write_flags = self.write_flags;
                 let res = self.call.as_mut().unwrap().call(|c| {

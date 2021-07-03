@@ -98,12 +98,13 @@ impl Generic {
 
 #[inline]
 #[allow(clippy::ptr_arg)]
-pub fn bin_ser(t: &Vec<u8>, buf: &mut GrpcSlice) {
+pub fn bin_ser(t: &Vec<u8>, buf: &mut GrpcSlice) -> grpc::Result<()> {
     unsafe {
         let bytes = buf.realloc(t.len());
         let b = &mut *(bytes as *mut [std::mem::MaybeUninit<u8>] as *mut [u8]);
         b.copy_from_slice(t);
     }
+    Ok(())
 }
 
 #[inline]

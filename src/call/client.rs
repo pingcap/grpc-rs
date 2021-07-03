@@ -110,7 +110,7 @@ impl Call {
     ) -> Result<ClientUnaryReceiver<Resp>> {
         let call = channel.create_call(method, &opt)?;
         let mut payload = GrpcSlice::default();
-        (method.req_ser())(req, &mut payload);
+        (method.req_ser())(req, &mut payload)?;
         let cq_f = check_run(BatchType::CheckRead, |ctx, tag| unsafe {
             grpc_sys::grpcwrap_call_start_unary(
                 call.call,
@@ -163,7 +163,7 @@ impl Call {
     ) -> Result<ClientSStreamReceiver<Resp>> {
         let call = channel.create_call(method, &opt)?;
         let mut payload = GrpcSlice::default();
-        (method.req_ser())(req, &mut payload);
+        (method.req_ser())(req, &mut payload)?;
         let cq_f = check_run(BatchType::Finish, |ctx, tag| unsafe {
             grpc_sys::grpcwrap_call_start_server_streaming(
                 call.call,

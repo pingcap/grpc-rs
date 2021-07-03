@@ -5,8 +5,6 @@ use std::{error, fmt, result};
 use crate::call::RpcStatus;
 use crate::grpc_sys::grpc_call_error;
 
-#[cfg(feature = "prost-codec")]
-use prost::DecodeError;
 #[cfg(feature = "protobuf-codec")]
 use protobuf::ProtobufError;
 
@@ -67,8 +65,15 @@ impl From<ProtobufError> for Error {
 }
 
 #[cfg(feature = "prost-codec")]
-impl From<DecodeError> for Error {
-    fn from(e: DecodeError) -> Error {
+impl From<prost::DecodeError> for Error {
+    fn from(e: prost::DecodeError) -> Error {
+        Error::Codec(Box::new(e))
+    }
+}
+
+#[cfg(feature = "prost-codec")]
+impl From<prost::EncodeError> for Error {
+    fn from(e: prost::EncodeError) -> Error {
         Error::Codec(Box::new(e))
     }
 }
