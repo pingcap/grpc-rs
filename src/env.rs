@@ -165,6 +165,15 @@ impl Drop for Environment {
             // it's safe to shutdown more than once.
             cq.shutdown()
         }
+
+        // Join our threads when we leave scope
+        // Try not to join the current thread
+        let current_thread_id = std::thread::current().id();
+        for handle in self._handles.drain(..) {
+            if handle.thread().id() != current_thread_id {
+                handle.join().unwrap();
+            }
+        }
     }
 }
 
@@ -174,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_basic_loop() {
-        let mut env = Environment::new(2);
+        let env = Environment::new(2);
 
         let q1 = env.pick_cq();
         let q2 = env.pick_cq();
@@ -191,12 +200,5 @@ mod tests {
         }
 
         assert_eq!(env.completion_queues().len(), 2);
-        for cq in env.completion_queues() {
-            cq.shutdown();
-        }
-
-        for handle in env._handles.drain(..) {
-            handle.join().unwrap();
-        }
     }
 }
